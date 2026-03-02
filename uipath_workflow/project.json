@@ -1,0 +1,21 @@
+{
+  "name": "AWS_AutoNation",
+  "description": "Bulk S3 bucket creation from Excel/CSV — reads a spreadsheet and creates all buckets on AWS in one click",
+  "main": "BulkS3FromExcel.xaml",
+  "outputType": "Process",
+  "expressionLanguage": "VisualBasic",
+  "targetFramework": "Windows",
+  "uiAutomationVersion": "23.10.3",
+  "studioVersion": "23.10.0",
+  "schemaVersion": "1.0",
+  "dependencies": {
+    "UiPath.System.Activities":      "[23.10.3]",
+    "UiPath.UIAutomation.Activities": "[23.10.5]",
+    "UiPath.WebAPI.Activities":      "[1.16.0]",
+    "UiPath.Excel.Activities":       "[2.21.0]",
+    "Newtonsoft.Json":               "[13.0.1]"
+  },
+  "designOptions": {
+    "projectProfile": "Attended"
+  }
+}

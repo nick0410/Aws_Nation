@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AWS AutoNation - UiPath Bulk S3 Bucket Creator
+  ===================================================
+  PURPOSE (Browser UI se alag fayda):
+    Browser UI = ek ek bucket manually banana
+    UiPath     = Excel/CSV file se EK CLICK mein 50 buckets banana
+
+  What this workflow does:
+    1. User se CSV file ka path poochta hai
+    2. Har row padh ke JSON array banata hai
+    3. Single API call → POST /s3/bulk-create
+    4. Results ek nayi CSV mein save karta hai
+    5. Summary popup dikhata hai
+
+  Prerequisites:
+    - UiPath Studio Community Edition
+    - Packages: UiPath.WebAPI.Activities, UiPath.Excel.Activities, Newtonsoft.Json
+    - FastAPI backend running on http://127.0.0.1:8000
+    - Fill buckets_to_create.csv with your bucket list
+
+  How to run:
+    1. Open UiPath Studio → File → Open → select this .xaml
+    2. Press F5
+    3. Pick your CSV file when dialog appears
+    4. Done — all buckets created, results saved to results_YYYYMMDD.csv
+-->
+<Activity
+  mc:Ignorable="sads"
+  x:Class="AWS_AutoNation.BulkS3FromExcel"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+  xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
+  xmlns:ui="http://schemas.uipath.com/workflow/activities"
+  xmlns:uiwa="clr-namespace:UiPath.WebAPI.Activities;assembly=UiPath.WebAPI.Activities"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <mva:VisualBasic.Settings>
+    <mva:VisualBasicSettings>
+      <mva:VisualBasicImportReference Assembly="mscorlib"          Import="System" />
+      <mva:VisualBasicImportReference Assembly="mscorlib"          Import="System.IO" />
+      <mva:VisualBasicImportReference Assembly="System.Core"       Import="System.Linq" />
+      <mva:VisualBasicImportReference Assembly="System.Core"       Import="System.Collections.Generic" />
+      <mva:VisualBasicImportReference Assembly="Newtonsoft.Json"   Import="Newtonsoft.Json" />
+      <mva:VisualBasicImportReference Assembly="Newtonsoft.Json"   Import="Newtonsoft.Json.Linq" />
+    </mva:VisualBasicSettings>
+  </mva:VisualBasic.Settings>
+
+  <Sequence DisplayName="📦 Bulk S3 Bucket Creator — Excel to AWS">
+
+    <Sequence.Variables>
+      <!-- File Paths -->
+      <Variable Name="csvFilePath"    Type="x:String"  Default="&quot;&quot;" />
+      <Variable Name="resultsPath"    Type="x:String"  Default="&quot;&quot;" />
+      <!-- CSV Data -->
+      <Variable Name="csvLines"       Type="x:String[]" />
+      <Variable Name="jsonBuckets"    Type="x:String"  Default="&quot;&quot;" />
+      <Variable Name="requestBody"    Type="x:String"  Default="&quot;&quot;" />
+      <!-- API Response -->
+      <Variable Name="responseStr"    Type="x:String"  Default="&quot;&quot;" />
+      <Variable Name="statusCode"     Type="x:Int32"   Default="0" />
+      <Variable Name="jsonResp"       Type="Newtonsoft.Json.Linq.JObject" />
+      <!-- Counters -->
+      <Variable Name="totalCount"     Type="x:Int32"   Default="0" />
+      <Variable Name="createdCount"   Type="x:Int32"   Default="0" />
+      <Variable Name="failedCount"    Type="x:Int32"   Default="0" />
+      <Variable Name="summaryMsg"     Type="x:String"  Default="&quot;&quot;" />
+      <!-- Loop -->
+      <Variable Name="lineIndex"      Type="x:Int32"   Default="0" />
+      <Variable Name="bucketJsonArr"  Type="x:String"  Default="&quot;[&quot;" />
+    </Sequence.Variables>
+
+    <!-- ══════════════════════════════════════════
+         STEP 1: Ask user to select CSV file
+    ══════════════════════════════════════════ -->
+    <ui:InputDialog
+      DisplayName="📂 Select CSV File"
+      Label="Full path to your buckets CSV file:"
+      Title="AWS AutoNation — Bulk S3 Creator"
+      Result="[csvFilePath]"
+      DefaultValue="[System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, &quot;buckets_to_create.csv&quot;)]" />
+
+    <!-- Validate file exists -->
+    <If DisplayName="Check file exists" Condition="[Not System.IO.File.Exists(csvFilePath)]">
+      <If.Then>
+        <Sequence>
+          <ui:MessageBox
+            DisplayName="❌ File Not Found"
+            Text="[&quot;File not found: &quot; + csvFilePath + &quot;\n\nMake sure the CSV path is correct.&quot;]"
+            Caption="Error" />
+          <Throw>
+            <Throw.Exception>
+              <InArgument x:TypeArguments="x:Exception">
+                [New System.IO.FileNotFoundException("CSV file not found: " + csvFilePath)]
+              </InArgument>
+            </Throw.Exception>
+          </Throw>
+        </Sequence>
+      </If.Then>
+    </If>
+
+    <!-- ══════════════════════════════════════════
+         STEP 2: Read CSV and build JSON array
+    ══════════════════════════════════════════ -->
+
+    <!-- Read all lines from CSV -->
+    <Assign DisplayName="Read CSV lines">
+      <Assign.To><OutArgument x:TypeArguments="x:String[]">[csvLines]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String[]">[System.IO.File.ReadAllLines(csvFilePath)]</InArgument></Assign.Value>
+    </Assign>
+
+    <!-- Count rows (skip header row index 0) -->
+    <Assign DisplayName="Set total count">
+      <Assign.To><OutArgument x:TypeArguments="x:Int32">[totalCount]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:Int32">[csvLines.Length - 1]</InArgument></Assign.Value>
+    </Assign>
+
+    <!-- Confirm before proceeding -->
+    <ui:MessageBox
+      DisplayName="✅ Confirm Bulk Creation"
+      Text="[&quot;Found &quot; + totalCount.ToString() + &quot; buckets to create.\n\nClick OK to start bulk creation on AWS.&quot;]"
+      Caption="AWS AutoNation — Confirm"
+      Buttons="OKCancel" />
+
+    <!-- Build JSON array from CSV rows (skip header line 0) -->
+    <Assign DisplayName="Init JSON array">
+      <Assign.To><OutArgument x:TypeArguments="x:String">[bucketJsonArr]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String">["["]</InArgument></Assign.Value>
+    </Assign>
+
+    <Assign DisplayName="Reset line index to 1 (skip header)">
+      <Assign.To><OutArgument x:TypeArguments="x:Int32">[lineIndex]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:Int32">[1]</InArgument></Assign.Value>
+    </Assign>
+
+    <!-- Loop through CSV rows -->
+    <While DisplayName="Loop CSV rows" Condition="[lineIndex &lt; csvLines.Length]">
+      <Sequence>
+        <!-- Parse each column: bucket_name,region,access_level,versioning,owner_email -->
+        <Sequence.Variables>
+          <Variable Name="cols"        Type="x:String[]" />
+          <Variable Name="bktName"     Type="x:String" Default="&quot;&quot;" />
+          <Variable Name="bktRegion"   Type="x:String" Default="&quot;ap-south-1&quot;" />
+          <Variable Name="bktAccess"   Type="x:String" Default="&quot;private&quot;" />
+          <Variable Name="bktVersion"  Type="x:String" Default="&quot;false&quot;" />
+          <Variable Name="bktEmail"    Type="x:String" Default="&quot;&quot;" />
+          <Variable Name="rowJson"     Type="x:String" Default="&quot;&quot;" />
+          <Variable Name="comma"       Type="x:String" Default="&quot;&quot;" />
+        </Sequence.Variables>
+
+        <Assign DisplayName="Split CSV row">
+          <Assign.To><OutArgument x:TypeArguments="x:String[]">[cols]</OutArgument></Assign.To>
+          <Assign.Value><InArgument x:TypeArguments="x:String[]">[csvLines(lineIndex).Split(","c)]</InArgument></Assign.Value>
+        </Assign>
+
+        <Assign DisplayName="Parse columns">
+          <Assign.To><OutArgument x:TypeArguments="x:String">[bktName]</OutArgument></Assign.To>
+          <Assign.Value><InArgument x:TypeArguments="x:String">[If(cols.Length > 0, cols(0).Trim(), "")]</InArgument></Assign.Value>
+        </Assign>
+        <Assign>
+          <Assign.To><OutArgument x:TypeArguments="x:String">[bktRegion]</OutArgument></Assign.To>
+          <Assign.Value><InArgument x:TypeArguments="x:String">[If(cols.Length > 1, cols(1).Trim(), "ap-south-1")]</InArgument></Assign.Value>
+        </Assign>
+        <Assign>
+          <Assign.To><OutArgument x:TypeArguments="x:String">[bktAccess]</OutArgument></Assign.To>
+          <Assign.Value><InArgument x:TypeArguments="x:String">[If(cols.Length > 2, cols(2).Trim(), "private")]</InArgument></Assign.Value>
+        </Assign>
+        <Assign>
+          <Assign.To><OutArgument x:TypeArguments="x:String">[bktVersion]</OutArgument></Assign.To>
+          <Assign.Value><InArgument x:TypeArguments="x:String">[If(cols.Length > 3, cols(3).Trim().ToLower(), "false")]</InArgument></Assign.Value>
+        </Assign>
+        <Assign>
+          <Assign.To><OutArgument x:TypeArguments="x:String">[bktEmail]</OutArgument></Assign.To>
+          <Assign.Value><InArgument x:TypeArguments="x:String">[If(cols.Length > 4, cols(4).Trim(), "")]</InArgument></Assign.Value>
+        </Assign>
+
+        <!-- Add comma separator between items -->
+        <Assign DisplayName="Set comma if not first">
+          <Assign.To><OutArgument x:TypeArguments="x:String">[comma]</OutArgument></Assign.To>
+          <Assign.Value><InArgument x:TypeArguments="x:String">[If(lineIndex > 1, ",", "")]</InArgument></Assign.Value>
+        </Assign>
+
+        <!-- Build JSON object for this row -->
+        <Assign DisplayName="Build row JSON">
+          <Assign.To><OutArgument x:TypeArguments="x:String">[rowJson]</OutArgument></Assign.To>
+          <Assign.Value>
+            <InArgument x:TypeArguments="x:String">
+              [comma + "{""bucket_name"":""" + bktName + """,""region"":""" + bktRegion + """,""access_level"":""" + bktAccess + """,""versioning"":" + bktVersion + ",""owner_email"":""" + bktEmail + """}"]
+            </InArgument>
+          </Assign.Value>
+        </Assign>
+
+        <!-- Append to array string -->
+        <Assign DisplayName="Append to JSON array">
+          <Assign.To><OutArgument x:TypeArguments="x:String">[bucketJsonArr]</OutArgument></Assign.To>
+          <Assign.Value><InArgument x:TypeArguments="x:String">[bucketJsonArr + rowJson]</InArgument></Assign.Value>
+        </Assign>
+
+        <!-- Increment line index -->
+        <Assign DisplayName="Increment index">
+          <Assign.To><OutArgument x:TypeArguments="x:Int32">[lineIndex]</OutArgument></Assign.To>
+          <Assign.Value><InArgument x:TypeArguments="x:Int32">[lineIndex + 1]</InArgument></Assign.Value>
+        </Assign>
+      </Sequence>
+    </While>
+
+    <!-- Close JSON array -->
+    <Assign DisplayName="Close JSON array">
+      <Assign.To><OutArgument x:TypeArguments="x:String">[bucketJsonArr]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String">[bucketJsonArr + "]"]</InArgument></Assign.Value>
+    </Assign>
+
+    <!-- Wrap in request body -->
+    <Assign DisplayName="Build full request body">
+      <Assign.To><OutArgument x:TypeArguments="x:String">[requestBody]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String">["{""buckets"":" + bucketJsonArr + "}"]</InArgument></Assign.Value>
+    </Assign>
+
+    <!-- ══════════════════════════════════════════
+         STEP 3: Call FastAPI /s3/bulk-create
+    ══════════════════════════════════════════ -->
+    <uiwa:HttpClientActivity
+      DisplayName="🚀 POST /s3/bulk-create"
+      EndPoint="http://127.0.0.1:8000/s3/bulk-create"
+      Method="POST"
+      Body="[requestBody]"
+      BodyFormat="application/json"
+      Response="{x:Reference responseStr}"
+      ResponseStatusCode="{x:Reference statusCode}" />
+
+    <!-- ══════════════════════════════════════════
+         STEP 4: Parse response and save results
+    ══════════════════════════════════════════ -->
+    <Assign DisplayName="Parse JSON response">
+      <Assign.To><OutArgument x:TypeArguments="Newtonsoft.Json.Linq.JObject">[jsonResp]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="Newtonsoft.Json.Linq.JObject">[Newtonsoft.Json.Linq.JObject.Parse(responseStr)]</InArgument></Assign.Value>
+    </Assign>
+
+    <Assign DisplayName="Get created count">
+      <Assign.To><OutArgument x:TypeArguments="x:Int32">[createdCount]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:Int32">[CInt(jsonResp("created").ToString())]</InArgument></Assign.Value>
+    </Assign>
+
+    <Assign DisplayName="Get failed count">
+      <Assign.To><OutArgument x:TypeArguments="x:Int32">[failedCount]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:Int32">[CInt(jsonResp("failed").ToString())]</InArgument></Assign.Value>
+    </Assign>
+
+    <!-- Save results CSV next to input file -->
+    <Assign DisplayName="Build results file path">
+      <Assign.To><OutArgument x:TypeArguments="x:String">[resultsPath]</OutArgument></Assign.To>
+      <Assign.Value>
+        <InArgument x:TypeArguments="x:String">
+          [System.IO.Path.Combine(System.IO.Path.GetDirectoryName(csvFilePath), "results_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".csv")]
+        </InArgument>
+      </Assign.Value>
+    </Assign>
+
+    <!-- Write results CSV header + data -->
+    <InvokeMethod DisplayName="Write results to CSV"
+      MethodName="WriteAllText"
+      TargetType="[Type.GetType(&quot;System.IO.File&quot;)]">
+      <InvokeMethod.Parameters>
+        <InArgument x:TypeArguments="x:String">[resultsPath]</InArgument>
+        <InArgument x:TypeArguments="x:String">
+          ["bucket_name,region,owner_email,success,message" + Environment.NewLine + String.Join(Environment.NewLine, jsonResp("results").Select(Function(r) r("bucket_name").ToString() + "," + r("region").ToString() + "," + r("owner_email").ToString() + "," + r("success").ToString() + "," + r("message").ToString()).ToArray())]
+        </InArgument>
+      </InvokeMethod.Parameters>
+    </InvokeMethod>
+
+    <!-- ══════════════════════════════════════════
+         STEP 5: Show Summary to User
+    ══════════════════════════════════════════ -->
+    <Assign DisplayName="Build summary message">
+      <Assign.To><OutArgument x:TypeArguments="x:String">[summaryMsg]</OutArgument></Assign.To>
+      <Assign.Value>
+        <InArgument x:TypeArguments="x:String">
+          ["✅ Bulk S3 Creation Complete!" + Environment.NewLine + Environment.NewLine + "Total: " + totalCount.ToString() + Environment.NewLine + "✅ Created: " + createdCount.ToString() + Environment.NewLine + "❌ Failed: " + failedCount.ToString() + Environment.NewLine + Environment.NewLine + "Results saved to:" + Environment.NewLine + resultsPath]
+        </InArgument>
+      </Assign.Value>
+    </Assign>
+
+    <ui:MessageBox
+      DisplayName="🎉 Done!"
+      Text="[summaryMsg]"
+      Caption="AWS AutoNation — Bulk Creation Done"
+      Buttons="OK" />
+
+  </Sequence>
+</Activity>

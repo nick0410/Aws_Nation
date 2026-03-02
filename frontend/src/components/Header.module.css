@@ -1,0 +1,78 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.logo {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, var(--primary) 0%, #e07b00 100%);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--secondary);
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.05em;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface2);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  flex: 1;
+  max-width: 480px;
+}
+
+.tab {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: all 0.2s;
+  flex: 1;
+  justify-content: center;
+}
+.tab:hover  { color: var(--text); background: var(--border); }
+.tab.active { color: var(--secondary); background: var(--primary); font-weight: 700; }
+
+.ghLink {
+  margin-left: auto;
+  color: var(--text-muted);
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+.ghLink:hover { color: var(--text); }

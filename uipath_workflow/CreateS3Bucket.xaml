@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AWS AutoNation - UiPath Workflow
+  ===================================================
+  This workflow:
+    1. Shows an input form to the user
+    2. Sends an HTTP POST to the FastAPI backend (/s3/create)
+    3. Displays the result (bucket URL + blockchain tx hash)
+
+  Prerequisites:
+    - FastAPI backend running on http://localhost:8000
+    - UiPath Studio installed (Community Edition is free)
+    - Package: UiPath.WebAPI.Activities (install from Manage Packages)
+
+  How to open:
+    1. Open UiPath Studio
+    2. File → Open → select this .xaml file
+    3. Press F5 (or Run) to execute
+-->
+<Activity
+  mc:Ignorable="sads"
+  x:Class="AWS_AutoNation.CreateS3Bucket"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+  xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
+  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
+  xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+  xmlns:ui="http://schemas.uipath.com/workflow/activities"
+  xmlns:uiwa="clr-namespace:UiPath.WebAPI.Activities;assembly=UiPath.WebAPI.Activities"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <x:Members>
+    <!-- Output variables exposed to caller workflows -->
+    <x:Property Name="BucketURL"    Type="OutArgument(x:String)" />
+    <x:Property Name="TxHash"       Type="OutArgument(x:String)" />
+    <x:Property Name="IsSuccess"    Type="OutArgument(x:Boolean)" />
+  </x:Members>
+
+  <mva:VisualBasic.Settings>
+    <mva:VisualBasicSettings>
+      <mva:VisualBasicImportReference Assembly="mscorlib"              Import="System" />
+      <mva:VisualBasicImportReference Assembly="System.Activities"     Import="System.Activities" />
+      <mva:VisualBasicImportReference Assembly="System.Core"           Import="System.Linq" />
+      <mva:VisualBasicImportReference Assembly="Newtonsoft.Json"       Import="Newtonsoft.Json" />
+      <mva:VisualBasicImportReference Assembly="Newtonsoft.Json"       Import="Newtonsoft.Json.Linq" />
+    </mva:VisualBasicSettings>
+  </mva:VisualBasic.Settings>
+
+  <Sequence DisplayName="🪣 Create AWS S3 Bucket">
+
+    <!-- ══════════════════════════════════════════════
+         STEP 1: Collect User Inputs
+    ══════════════════════════════════════════════ -->
+    <Sequence DisplayName="📋 Step 1: Get User Inputs">
+
+      <!-- Variables -->
+      <Sequence.Variables>
+        <Variable Name="bucketName"   Type="x:String"  Default="&quot;&quot;" />
+        <Variable Name="ownerEmail"   Type="x:String"  Default="&quot;&quot;" />
+        <Variable Name="awsRegion"    Type="x:String"  Default="&quot;ap-south-1&quot;" />
+        <Variable Name="accessLevel"  Type="x:String"  Default="&quot;private&quot;" />
+        <Variable Name="versioning"   Type="x:Boolean" Default="False" />
+        <Variable Name="requestBody"  Type="x:String"  Default="&quot;&quot;" />
+        <Variable Name="responseStr"  Type="x:String"  Default="&quot;&quot;" />
+        <Variable Name="statusCode"   Type="x:Int32"   Default="0" />
+        <Variable Name="jsonResponse" Type="Newtonsoft.Json.Linq.JObject" />
+      </Sequence.Variables>
+
+      <!-- Input: Bucket Name -->
+      <ui:InputDialog
+        DisplayName="Enter Bucket Name"
+        Label="S3 Bucket Name (lowercase, hyphens only):"
+        Title="AWS AutoNation – Create S3 Bucket"
+        Result="[bucketName]" />
+
+      <!-- Validate not empty -->
+      <If DisplayName="Validate Bucket Name" Condition="[String.IsNullOrWhiteSpace(bucketName)]">
+        <If.Then>
+          <ui:MessageBox
+            DisplayName="Validation Error"
+            Text="Bucket name cannot be empty!"
+            Caption="Error"
+            Buttons="Ok"
+            Icon="Error" />
+          <Throw DisplayName="Stop: No bucket name">
+            <Throw.Exception>
+              <InArgument x:TypeArguments="x:Exception">
+                <New x:TypeArguments="x:Exception">
+                  <InArgument x:TypeArguments="x:String">Bucket name is required</InArgument>
+                </New>
+              </InArgument>
+            </Throw.Exception>
+          </Throw>
+        </If.Then>
+      </If>
+
+      <!-- Input: Owner Email -->
+      <ui:InputDialog
+        DisplayName="Enter Your Email"
+        Label="Your Email Address:"
+        Title="AWS AutoNation – Owner Email"
+        Result="[ownerEmail]" />
+
+      <!-- Input: Region Selection -->
+      <ui:SelectItemDialog
+        DisplayName="Select AWS Region"
+        Label="Choose AWS Region:"
+        Title="AWS AutoNation – Region"
+        Options="{x:Array Type=x:String, ap-south-1, us-east-1, us-east-2, us-west-2, eu-west-1, eu-central-1, ap-southeast-1}"
+        Result="[awsRegion]" />
+
+      <!-- Input: Access Level -->
+      <ui:SelectItemDialog
+        DisplayName="Select Access Level"
+        Label="Bucket Access Level:"
+        Title="AWS AutoNation – Access"
+        Options="{x:Array Type=x:String, private, public-read}"
+        Result="[accessLevel]" />
+
+    </Sequence>
+
+    <!-- ══════════════════════════════════════════════
+         STEP 2: Build JSON Payload
+    ══════════════════════════════════════════════ -->
+    <Assign DisplayName="🔧 Build JSON Request Body">
+      <Assign.To>
+        <OutArgument x:TypeArguments="x:String">[requestBody]</OutArgument>
+      </Assign.To>
+      <Assign.Value>
+        <InArgument x:TypeArguments="x:String">
+          [String.Format("{{""bucket_name"":""{0}"",""owner_email"":""{1}"",""region"":""{2}"",""access_level"":""{3}"",""versioning"":false,""tags"":{{""CreatedVia"":""UiPath""}}}}", bucketName.Trim().ToLower(), ownerEmail.Trim(), awsRegion, accessLevel)]
+        </InArgument>
+      </Assign.Value>
+    </Assign>
+
+    <!-- ══════════════════════════════════════════════
+         STEP 3: HTTP POST to FastAPI Backend
+    ══════════════════════════════════════════════ -->
+    <TryCatch DisplayName="🌐 Step 3: Call FastAPI Backend">
+      <TryCatch.Try>
+        <Sequence>
+          <uiwa:HTTPRequest
+            DisplayName="POST /s3/create"
+            EndPoint="http://localhost:8000/s3/create"
+            Method="POST"
+            Body="[requestBody]"
+            BodyFormat="application/json"
+            AcceptFormat="application/json"
+            Response="[responseStr]"
+            StatusCode="[statusCode]" />
+        </Sequence>
+      </TryCatch.Try>
+
+      <TryCatch.Catches>
+        <Catch x:TypeArguments="x:Exception" Name="ex">
+          <ActivityAction x:TypeArguments="x:Exception">
+            <ActivityAction.Argument>
+              <DelegateInArgument Name="ex" x:TypeArguments="x:Exception" />
+            </ActivityAction.Argument>
+            <ui:MessageBox
+              DisplayName="Connection Error"
+              Text="[&quot;Cannot connect to backend!&#10;&#10;Make sure FastAPI is running:&#10;  cd backend&#10;  python main.py&#10;&#10;Error: &quot; + ex.Message]"
+              Caption="Connection Failed"
+              Icon="Error" />
+          </ActivityAction>
+        </Catch>
+      </TryCatch.Catches>
+    </TryCatch>
+
+    <!-- ══════════════════════════════════════════════
+         STEP 4: Parse Response &amp; Show Result
+    ══════════════════════════════════════════════ -->
+    <If DisplayName="📊 Step 4: Handle Response" Condition="[statusCode = 200]">
+
+      <!-- SUCCESS -->
+      <If.Then>
+        <Sequence DisplayName="✅ Success Flow">
+
+          <!-- Parse JSON -->
+          <Assign DisplayName="Parse JSON Response">
+            <Assign.To>
+              <OutArgument x:TypeArguments="Newtonsoft.Json.Linq.JObject">[jsonResponse]</OutArgument>
+            </Assign.To>
+            <Assign.Value>
+              <InArgument x:TypeArguments="Newtonsoft.Json.Linq.JObject">
+                [Newtonsoft.Json.Linq.JObject.Parse(responseStr)]
+              </InArgument>
+            </Assign.Value>
+          </Assign>
+
+          <!-- Set output variables -->
+          <Assign DisplayName="Set BucketURL output">
+            <Assign.To><OutArgument x:TypeArguments="x:String">[BucketURL]</OutArgument></Assign.To>
+            <Assign.Value><InArgument x:TypeArguments="x:String">[jsonResponse("bucket_url").ToString()]</InArgument></Assign.Value>
+          </Assign>
+
+          <Assign DisplayName="Set TxHash output">
+            <Assign.To><OutArgument x:TypeArguments="x:String">[TxHash]</OutArgument></Assign.To>
+            <Assign.Value>
+              <InArgument x:TypeArguments="x:String">
+                [If(jsonResponse("blockchain") IsNot Nothing AndAlso jsonResponse("blockchain")("tx_hash") IsNot Nothing, jsonResponse("blockchain")("tx_hash").ToString(), "Blockchain not configured")]
+              </InArgument>
+            </Assign.Value>
+          </Assign>
+
+          <Assign DisplayName="Set IsSuccess">
+            <Assign.To><OutArgument x:TypeArguments="x:Boolean">[IsSuccess]</OutArgument></Assign.To>
+            <Assign.Value><InArgument x:TypeArguments="x:Boolean">True</InArgument></Assign.Value>
+          </Assign>
+
+          <!-- Show Success Message -->
+          <ui:MessageBox
+            DisplayName="🎉 Bucket Created!"
+            Text="[String.Format(&quot;✅ S3 Bucket Created Successfully!{0}{0}📦 Bucket: {1}{0}🌐 URL: {2}{0}🌍 Region: {3}{0}{0}⛓️ Blockchain TX: {4}&quot;, Environment.NewLine, bucketName, jsonResponse(&quot;bucket_url&quot;).ToString(), awsRegion, TxHash)]"
+            Caption="AWS AutoNation – Success"
+            Buttons="Ok"
+            Icon="Information" />
+
+        </Sequence>
+      </If.Then>
+
+      <!-- ERROR (non-200 status) -->
+      <If.Else>
+        <Sequence DisplayName="❌ Error Flow">
+          <Assign DisplayName="Set IsSuccess False">
+            <Assign.To><OutArgument x:TypeArguments="x:Boolean">[IsSuccess]</OutArgument></Assign.To>
+            <Assign.Value><InArgument x:TypeArguments="x:Boolean">False</InArgument></Assign.Value>
+          </Assign>
+
+          <ui:MessageBox
+            DisplayName="❌ Bucket Creation Failed"
+            Text="[String.Format(&quot;Failed to create bucket!{0}{0}HTTP Status: {1}{0}Response: {2}&quot;, Environment.NewLine, statusCode, responseStr)]"
+            Caption="AWS AutoNation – Error"
+            Buttons="Ok"
+            Icon="Error" />
+        </Sequence>
+      </If.Else>
+
+    </If>
+
+  </Sequence>
+</Activity>

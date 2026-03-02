@@ -1,0 +1,97 @@
+/* Global styles for AWS AutoNation */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary:      #FF9900;
+  --primary-dark: #e07b00;
+  --secondary:    #232f3e;
+  --bg:           #0f111a;
+  --surface:      #1a1d2e;
+  --surface2:     #242740;
+  --border:       #2e3250;
+  --text:         #e8eaf6;
+  --text-muted:   #8b90b8;
+  --success:      #4caf82;
+  --error:        #f44336;
+  --blockchain:   #a78bfa;
+  --ml:           #38bdf8;
+  --radius:       12px;
+  --shadow:       0 4px 20px rgba(0,0,0,0.4);
+}
+
+body {
+  font-family: 'Inter','Segoe UI',system-ui,sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar       { width: 8px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.badge.success { background: rgba(76,175,130,0.15); color: var(--success); }
+.badge.error   { background: rgba(244,67,54,0.15);  color: var(--error);   }
+.badge.info    { background: rgba(56,189,248,0.15); color: var(--ml);      }
+.badge.purple  { background: rgba(167,139,250,0.15);color: var(--blockchain);}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-radius: 8px; font-size: 14px;
+  font-weight: 600; cursor: pointer; border: none; transition: all 0.2s;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary  { background: var(--primary); color: var(--secondary); }
+.btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); }
+.btn-outline  { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn-outline:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.btn-danger   { background: rgba(244,67,54,0.1); color: var(--error); border: 1px solid rgba(244,67,54,0.3); }
+.btn-danger:hover:not(:disabled) { background: rgba(244,67,54,0.2); }
+
+.form-group   { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+
+label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+
+input, select, textarea {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 14px;
+  padding: 10px 14px; width: 100%; transition: border-color 0.2s; font-family: inherit;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+select option { background: var(--surface2); }
+textarea { resize: vertical; min-height: 100px; }
+
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+
+.toggle { position: relative; display: inline-block; width: 44px; height: 24px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0;
+  background: var(--border); border-radius: 999px; cursor: pointer; transition: 0.3s;
+}
+.toggle-slider::before {
+  content: ""; position: absolute;
+  width: 18px; height: 18px; left: 3px; bottom: 3px;
+  background: white; border-radius: 50%; transition: 0.3s;
+}
+.toggle input:checked + .toggle-slider { background: var(--primary); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(20px); }

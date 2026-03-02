@@ -1,0 +1,6 @@
+bucket_name,region,access_level,versioning,owner_email
+my-data-bucket-prod,ap-south-1,private,true,admin@company.com
+my-logs-bucket-prod,ap-south-1,private,false,admin@company.com
+my-backup-bucket-2026,ap-south-1,private,true,backup@company.com
+my-media-assets-cdn,ap-south-1,public-read,false,dev@company.com
+my-ml-datasets-store,ap-south-1,private,true,ml@company.com

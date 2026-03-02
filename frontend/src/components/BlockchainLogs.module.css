@@ -1,0 +1,96 @@
+.wrapper {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 900px) { .wrapper { grid-template-columns: 1fr; } }
+
+.head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 20px;
+}
+.head h2 { font-size: 16px; font-weight: 700; }
+
+.infoCard {}
+
+.infoGrid {
+  display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;
+}
+
+.infoRow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
+  font-size: 13px;
+}
+.infoLabel { color: var(--text-muted); font-weight: 500; }
+.infoVal   { font-weight: 600; font-size: 12px; word-break: break-all; max-width: 180px; text-align: right; }
+
+.explorerBtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--blockchain); font-size: 13px; font-weight: 500;
+  text-decoration: none; margin-bottom: 14px;
+}
+.explorerBtn:hover { text-decoration: underline; }
+
+.warning {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  background: rgba(244, 67, 54, 0.08);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+  border-radius: 8px; font-size: 12px; color: var(--error);
+  margin-bottom: 14px;
+}
+
+.solNote {
+  padding: 14px;
+  background: rgba(167,139,250,0.05);
+  border: 1px solid rgba(167,139,250,0.2);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.solHead {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px; font-weight: 600; color: var(--text);
+}
+.solNote ul { margin-left: 18px; margin-top: 4px; }
+.solNote li { margin-bottom: 2px; }
+
+.empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; padding: 60px 24px; text-align: center;
+  color: var(--text-muted); line-height: 1.7;
+}
+
+.logList { display: flex; flex-direction: column; gap: 8px; }
+
+.logItem {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 8px;
+  transition: border-color 0.2s;
+}
+.logItem:hover { border-color: var(--blockchain); }
+
+.logIndex {
+  font-size: 11px; font-weight: 700; color: var(--blockchain);
+  background: rgba(167,139,250,0.15);
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+}
+
+.logContent { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+
+.logMain {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+}
+.bucketName { font-weight: 700; font-size: 15px; }
+
+.logSub {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  font-size: 12px; color: var(--text-muted);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; }
