@@ -1,4 +1,5 @@
-import { Cloud, LayoutList, DollarSign } from "lucide-react";
+import { Cloud, LayoutList, DollarSign, LogOut, User } from "lucide-react";
+import { useAuth } from "../AuthContext";
 import styles from "./Header.module.css";
 
 export default function Header({
@@ -8,6 +9,7 @@ export default function Header({
   activeTab: string;
   setActiveTab: (tab: string) => void;
 }) {
+  const { user, logout } = useAuth();
   const tabs = [
     { id: "s3", label: "S3 Automation", icon: <Cloud size={16} /> },
     { id: "summary", label: "Summary",      icon: <LayoutList size={16} />  },
@@ -38,6 +40,17 @@ export default function Header({
         ))}
       </nav>
 
+      {user && (
+        <div className={styles.userSection}>
+          <span className={styles.username}>
+            <User size={14} />
+            {user.username}
+          </span>
+          <button className={styles.logoutBtn} onClick={logout} title="Logout">
+            <LogOut size={16} />
+          </button>
+        </div>
+      )}
 
     </header>
   );

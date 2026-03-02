@@ -3,7 +3,7 @@ AWS AutoNation - Main FastAPI Application
 Endpoints: S3 automation, ML Product Summary, Blockchain Logging
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -14,6 +14,7 @@ from aws_service import create_s3_bucket, list_user_buckets, delete_s3_bucket
 from ml_service import generate_product_summary
 from blockchain_service import log_bucket_creation, get_bucket_logs, get_contract_info
 from cost_service import estimate_cost
+from auth_service import signup as auth_signup, login as auth_login, get_user_from_token, logout as auth_logout
 
 # ── In-memory TTL caches ──────────────────────────────────────────────
 LIST_CACHE:    dict = {"data": None, "ts": 0.0}   # TTL 30s
@@ -40,6 +41,37 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ─────────────────────────────────────────────
+# Auth helper
+# ─────────────────────────────────────────────
+
+def _get_current_user(request: Request) -> dict:
+    """Extract user from Authorization header. Returns user dict with AWS creds."""
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated. Please log in.")
+    user = get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
+    return user
+
+
+# ─────────────────────────────────────────────
+# Auth Models
+# ─────────────────────────────────────────────
+
+class SignupRequest(BaseModel):
+    username: str
+    password: str
+    aws_access_key_id: str
+    aws_secret_access_key: str
+    aws_region: str = "ap-south-1"
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 
 # ─────────────────────────────────────────────
@@ -95,22 +127,63 @@ def root():
 
 
 # ─────────────────────────────────────────────
+# Auth Routes
+# ─────────────────────────────────────────────
+
+@app.post("/auth/signup")
+async def signup(req: SignupRequest):
+    result = auth_signup(
+        username=req.username,
+        password=req.password,
+        aws_access_key_id=req.aws_access_key_id,
+        aws_secret_access_key=req.aws_secret_access_key,
+        aws_region=req.aws_region,
+    )
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.post("/auth/login")
+async def login(req: LoginRequest):
+    result = auth_login(username=req.username, password=req.password)
+    if not result["success"]:
+        raise HTTPException(status_code=401, detail=result["error"])
+    return result
+
+
+@app.post("/auth/logout")
+async def logout(request: Request):
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    return auth_logout(token)
+
+
+@app.get("/auth/me")
+async def get_me(request: Request):
+    user = _get_current_user(request)
+    return {"username": user["username"], "aws_region": user["aws_region"]}
+
+
+# ─────────────────────────────────────────────
 # S3 Routes
 # ─────────────────────────────────────────────
 
 @app.post("/s3/create")
-async def create_bucket(req: BucketCreateRequest):
+async def create_bucket(req: BucketCreateRequest, request: Request):
     """
     Create an S3 bucket with full configuration.
     After creation, automatically logs the event on blockchain.
     """
+    user = _get_current_user(request)
     result = create_s3_bucket(
         bucket_name=req.bucket_name,
         region=req.region,
         access_level=req.access_level,
         versioning=req.versioning,
         tags=req.tags,
-        owner_email=req.owner_email
+        owner_email=req.owner_email,
+        access_key=user["aws_access_key_id"],
+        secret_key=user["aws_secret_access_key"],
     )
 
     if not result["success"]:
@@ -139,11 +212,15 @@ async def create_bucket(req: BucketCreateRequest):
 
 
 @app.get("/s3/list")
-async def list_buckets():
+async def list_buckets(request: Request):
     """List all S3 buckets in the AWS account (cached 30 s)."""
+    user = _get_current_user(request)
     if LIST_CACHE["data"] and (time.time() - LIST_CACHE["ts"]) < LIST_TTL:
         return LIST_CACHE["data"]
-    result = list_user_buckets()
+    result = list_user_buckets(
+        access_key=user["aws_access_key_id"],
+        secret_key=user["aws_secret_access_key"],
+    )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     LIST_CACHE["data"] = result
@@ -152,9 +229,14 @@ async def list_buckets():
 
 
 @app.delete("/s3/delete")
-async def delete_bucket(req: BucketDeleteRequest):
+async def delete_bucket(req: BucketDeleteRequest, request: Request):
     """Delete an existing S3 bucket."""
-    result = delete_s3_bucket(req.bucket_name, req.region)
+    user = _get_current_user(request)
+    result = delete_s3_bucket(
+        req.bucket_name, req.region,
+        access_key=user["aws_access_key_id"],
+        secret_key=user["aws_secret_access_key"],
+    )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     LIST_CACHE["data"] = None; LIST_CACHE["ts"] = 0.0
@@ -163,12 +245,16 @@ async def delete_bucket(req: BucketDeleteRequest):
 
 
 @app.delete("/s3/delete-all")
-async def delete_all_buckets():
+async def delete_all_buckets(request: Request):
     """Delete ALL buckets in the AWS account concurrently."""
+    user = _get_current_user(request)
     from aws_service import list_user_buckets
     import asyncio
 
-    list_result = list_user_buckets()
+    list_result = list_user_buckets(
+        access_key=user["aws_access_key_id"],
+        secret_key=user["aws_secret_access_key"],
+    )
     bucket_names = [b["name"] for b in list_result.get("buckets", [])]
 
     if not bucket_names:
@@ -178,7 +264,14 @@ async def delete_all_buckets():
     results = []
 
     async def _del(name):
-        r = await loop.run_in_executor(None, lambda: delete_s3_bucket(name, ""))
+        r = await loop.run_in_executor(
+            None,
+            lambda: delete_s3_bucket(
+                name, "",
+                access_key=user["aws_access_key_id"],
+                secret_key=user["aws_secret_access_key"],
+            )
+        )
         return {"bucket": name, **r}
 
     tasks = [_del(n) for n in bucket_names]
@@ -192,12 +285,13 @@ async def delete_all_buckets():
 
 
 @app.post("/s3/bulk-create")
-async def bulk_create_buckets(req: BulkBucketCreateRequest):
+async def bulk_create_buckets(req: BulkBucketCreateRequest, request: Request):
     """
     Create multiple S3 buckets in one call.
     UiPath reads an Excel file and sends all rows here.
     Returns per-bucket success/failure so the robot can log results back to Excel.
     """
+    user = _get_current_user(request)
     results = []
     success_count = 0
     fail_count = 0
@@ -209,7 +303,9 @@ async def bulk_create_buckets(req: BulkBucketCreateRequest):
             access_level=item.access_level,
             versioning=item.versioning,
             tags=item.tags or {},
-            owner_email=item.owner_email
+            owner_email=item.owner_email,
+            access_key=user["aws_access_key_id"],
+            secret_key=user["aws_secret_access_key"],
         )
         if r["success"]:
             success_count += 1
@@ -238,12 +334,13 @@ async def bulk_create_buckets(req: BulkBucketCreateRequest):
 # ─────────────────────────────────────────────
 
 @app.get("/s3/summary")
-async def bucket_summary_all(bucket_name: str = "", detail: bool = False):
+async def bucket_summary_all(request: Request, bucket_name: str = "", detail: bool = False):
     """
     Fast summary: file types + size per bucket (1 AWS call per bucket).
     Pass detail=true to also fetch versioning + Lambda triggers (3 calls per bucket).
     All-buckets result is cached 300 s.
     """
+    user = _get_current_user(request)
     import asyncio
     from aws_service import get_s3_client, _detect_bucket_region, list_user_buckets as _list
     from concurrent.futures import ThreadPoolExecutor
@@ -255,8 +352,8 @@ async def bucket_summary_all(bucket_name: str = "", detail: bool = False):
 
     def _summarize(name: str) -> dict:
         try:
-            region = _detect_bucket_region(name)
-            client = get_s3_client(region)
+            region = _detect_bucket_region(name, access_key=user["aws_access_key_id"], secret_key=user["aws_secret_access_key"])
+            client = get_s3_client(region, access_key=user["aws_access_key_id"], secret_key=user["aws_secret_access_key"])
 
             # Objects + file types  (1 fast API call)
             object_count = 0
@@ -311,7 +408,10 @@ async def bucket_summary_all(bucket_name: str = "", detail: bool = False):
                     "file_types": [], "lambda_triggers": [], "versioning": None}
 
     targets = [bucket_name] if bucket_name else \
-              [b["name"] for b in _list().get("buckets", [])]
+              [b["name"] for b in _list(
+                  access_key=user["aws_access_key_id"],
+                  secret_key=user["aws_secret_access_key"],
+              ).get("buckets", [])]
 
     loop = asyncio.get_event_loop()
     with ThreadPoolExecutor(max_workers=30) as pool:
@@ -342,11 +442,12 @@ class CostEstimateRequest(BaseModel):
 
 
 @app.post("/s3/cost-estimate")
-async def cost_estimate(req: CostEstimateRequest):
+async def cost_estimate(req: CostEstimateRequest, request: Request):
     """
     Estimate monthly S3 cost across storage classes.
     If bucket_name provided, auto-fetches versioning status from AWS.
     """
+    user = _get_current_user(request)
     import boto3, os
     from dotenv import load_dotenv
     load_dotenv()
@@ -358,8 +459,8 @@ async def cost_estimate(req: CostEstimateRequest):
     if req.bucket_name:
         try:
             from aws_service import get_s3_client, _detect_bucket_region
-            region = _detect_bucket_region(req.bucket_name)
-            client = get_s3_client(region)
+            region = _detect_bucket_region(req.bucket_name, access_key=user["aws_access_key_id"], secret_key=user["aws_secret_access_key"])
+            client = get_s3_client(region, access_key=user["aws_access_key_id"], secret_key=user["aws_secret_access_key"])
 
             ver_resp = client.get_bucket_versioning(Bucket=req.bucket_name)
             versioning = ver_resp.get("Status") == "Enabled"

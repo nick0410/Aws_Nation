@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Toaster } from "react-hot-toast";
+import { useAuth } from "./AuthContext";
+import AuthPage from "./components/AuthPage";
 import Header from "./components/Header";
 import S3Form from "./components/S3Form";
 import BucketSummary from "./components/BucketSummary";
@@ -7,7 +9,10 @@ import CostPredictor from "./components/CostPredictor";
 import styles from "./App.module.css";
 
 function App() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("s3");
+
+  if (!user) return <AuthPage />;
 
   return (
     <div className={styles.app}>

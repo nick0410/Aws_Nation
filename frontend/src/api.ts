@@ -5,6 +5,22 @@ const API = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// Attach auth token to every request
+API.interceptors.request.use((config) => {
+  const stored = localStorage.getItem("autonation_user");
+  if (stored) {
+    try {
+      const user = JSON.parse(stored);
+      if (user.token) {
+        config.headers.Authorization = `Bearer ${user.token}`;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return config;
+});
+
 // ── S3 ──────────────────────────────────────────────────────
 export interface BucketCreatePayload {
   bucket_name:  string;
