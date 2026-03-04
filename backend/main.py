@@ -1,6 +1,6 @@
 """
 AWS AutoNation - Main FastAPI Application
-Endpoints: S3 automation, ML Product Summary, Blockchain Logging
+Endpoints: S3 automation, ML Product Summary
 """
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,7 +12,6 @@ import time
 
 from aws_service import create_s3_bucket, list_user_buckets, delete_s3_bucket
 from ml_service import generate_product_summary
-from blockchain_service import log_bucket_creation, get_bucket_logs, get_contract_info
 from cost_service import estimate_cost
 from auth_service import signup as auth_signup, login as auth_login, get_user_from_token, logout as auth_logout
 
@@ -24,7 +23,7 @@ SUMMARY_TTL = 300
 
 app = FastAPI(
     title="AWS AutoNation API",
-    description="Automate S3 bucket creation, generate product summaries via ML, and log events on blockchain",
+    description="Automate S3 bucket creation and generate product summaries via ML",
     version="1.0.0"
 )
 
@@ -95,11 +94,6 @@ class ProductSummaryRequest(BaseModel):
     product_description: str
     max_length: int = 130
     min_length: int = 30
-
-class BlockchainLogRequest(BaseModel):
-    bucket_name: str
-    owner_email: str
-    region: str
 
 class BulkBucketItem(BaseModel):
     bucket_name: str
@@ -172,7 +166,6 @@ async def get_me(request: Request):
 async def create_bucket(req: BucketCreateRequest, request: Request):
     """
     Create an S3 bucket with full configuration.
-    After creation, automatically logs the event on blockchain.
     """
     user = _get_current_user(request)
     result = create_s3_bucket(
@@ -193,13 +186,6 @@ async def create_bucket(req: BucketCreateRequest, request: Request):
     LIST_CACHE["data"] = None
     LIST_CACHE["ts"]   = 0.0
 
-    # Auto-log to blockchain after successful bucket creation
-    blockchain_result = log_bucket_creation(
-        bucket_name=req.bucket_name,
-        owner_email=req.owner_email,
-        region=req.region
-    )
-
     return {
         "success": True,
         "message": f"Bucket '{req.bucket_name}' created successfully!",
@@ -207,7 +193,6 @@ async def create_bucket(req: BucketCreateRequest, request: Request):
         "region": req.region,
         "access_level": req.access_level,
         "versioning": req.versioning,
-        "blockchain": blockchain_result
     }
 
 
@@ -309,7 +294,6 @@ async def bulk_create_buckets(req: BulkBucketCreateRequest, request: Request):
         )
         if r["success"]:
             success_count += 1
-            log_bucket_creation(item.bucket_name, item.owner_email, item.region)
         else:
             fail_count += 1
 
@@ -511,26 +495,6 @@ async def summarize_product(req: ProductSummaryRequest):
         "summary": result["summary"],
         "model_used": result["model_used"]
     }
-
-
-# ─────────────────────────────────────────────
-# Blockchain Routes
-# ─────────────────────────────────────────────
-
-@app.get("/blockchain/logs")
-async def get_logs():
-    """Fetch all bucket creation logs from the blockchain."""
-    result = get_bucket_logs()
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result["error"])
-    return result
-
-
-@app.get("/blockchain/info")
-async def contract_info():
-    """Get smart contract metadata."""
-    result = get_contract_info()
-    return result
 
 
 # ─────────────────────────────────────────────

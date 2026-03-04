@@ -13,9 +13,6 @@ transformers==4.40.1
 torch==2.2.2
 sentencepiece==0.2.0
 
-# Blockchain
-web3==6.15.1
-
 # Environment
 python-dotenv==1.0.1
 

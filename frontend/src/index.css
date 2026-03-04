@@ -14,7 +14,6 @@
   --text-muted:   #8b90b8;
   --success:      #4caf82;
   --error:        #f44336;
-  --blockchain:   #a78bfa;
   --ml:           #38bdf8;
   --radius:       12px;
   --shadow:       0 4px 20px rgba(0,0,0,0.4);
@@ -48,7 +47,7 @@ body {
 .badge.success { background: rgba(76,175,130,0.15); color: var(--success); }
 .badge.error   { background: rgba(244,67,54,0.15);  color: var(--error);   }
 .badge.info    { background: rgba(56,189,248,0.15); color: var(--ml);      }
-.badge.purple  { background: rgba(167,139,250,0.15);color: var(--blockchain);}
+
 
 .btn {
   display: inline-flex; align-items: center; gap: 8px;

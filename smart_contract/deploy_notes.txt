@@ -1,4 +1,0 @@
-deploy:
-  contract  : BucketLogger.sol → Remix IDE (Sepolia)
-  backend   : Python FastAPI → localhost:8000
-  frontend  : Vite React     → localhost:5173

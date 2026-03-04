@@ -266,19 +266,7 @@ export default function S3Form() {
                 <ExternalLink size={14} />
               </a>
             </div>
-            {lastResult.blockchain?.success && (
-              <div className={styles.resultRow}>
-                <span className="badge purple">On-Chain</span>
-                <a
-                  href={lastResult.blockchain.explorer_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontSize: 12, color: "var(--blockchain)" }}
-                >
-                  Block #{lastResult.blockchain.block_number} · {lastResult.blockchain.tx_hash?.slice(0, 18)}…
-                </a>
-              </div>
-            )}
+
           </div>
         )}
       </div>

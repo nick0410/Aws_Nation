@@ -64,8 +64,4 @@ export interface CostEstimatePayload {
 }
 export const estimateCost = (data: CostEstimatePayload) => API.post("/s3/cost-estimate", data);
 
-// ── Blockchain ───────────────────────────────────────────────
-export const getBlockchainLogs = () => API.get("/blockchain/logs");
-export const getContractInfo   = () => API.get("/blockchain/info");
-
 export default API;
