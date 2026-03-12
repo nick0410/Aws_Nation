@@ -293,7 +293,7 @@ export default function S3Form() {
 
         {buckets.length > 0 && (
           <div className={styles.searchBar}>
-            <Search size={16} color="var(--text-muted)" />
+            <Search size={14} color="var(--text-muted)" />
             <input
               className={styles.searchInput}
               type="text"
