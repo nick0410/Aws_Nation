@@ -34,7 +34,7 @@
 |---------|-----------|--------------|
 | S3 Automation | AWS boto3 | Create buckets with 1 form fill: name, region, ACL, versioning, custom tags |
 | AI Summary | HuggingFace BART | Paste a long product description → get a concise AI-generated summary |
-| Cost Predictor | Custom estimation | Predict monthly S3 costs across storage classes |
+| Cost Predictor | Random Forest (scikit-learn) | ML-predicted monthly S3 costs across 5 storage classes |
 
 ---
 
@@ -109,7 +109,7 @@ aws_autonation/
 │   ├── main.py              ← FastAPI app + all routes
 │   ├── aws_service.py       ← boto3 S3 operations
 │   ├── ml_service.py        ← HuggingFace BART summarizer
-│   ├── cost_service.py      ← S3 cost estimation
+│   ├── cost_service.py      ← Random Forest cost predictor
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/
@@ -127,7 +127,16 @@ aws_autonation/
 
 ## ML Model Details
 
+### Text Summarization (AI Summary Tab)
 - **Model:** `facebook/bart-large-cnn` (HuggingFace Transformers)
 - **Task:** Abstractive text summarization
 - **Fallback:** Extractive summarization (no internet needed) if model unavailable
 - **First run:** Downloads ~1.5GB model weights (cached after that)
+
+### Cost Predictor (Cost Tab)
+- **Model:** `RandomForestRegressor` (scikit-learn)
+- **Training:** 5,000 synthetic samples per storage class (25,000 total) generated from real AWS ap-south-1 pricing
+- **Features:** storage_gb, PUT/day, GET/day, transfer_out, versioning, object_count, storage_class
+- **Target:** 6 cost components (storage, PUT, GET, transfer, retrieval, monitoring)
+- **Hyperparameters:** 100 estimators, max_depth=20
+- **Trains at startup** — no external data or pre-trained weights needed
