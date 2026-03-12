@@ -438,8 +438,9 @@ async def cost_estimate(req: CostEstimateRequest, request: Request):
 
     versioning = req.versioning_enabled
     object_count = req.object_count
+    storage_gb = req.storage_gb
 
-    # Auto-detect versioning from real bucket if name given
+    # Auto-detect versioning, object count, and storage size from real bucket
     if req.bucket_name:
         try:
             from aws_service import get_s3_client, _detect_bucket_region
@@ -449,18 +450,23 @@ async def cost_estimate(req: CostEstimateRequest, request: Request):
             ver_resp = client.get_bucket_versioning(Bucket=req.bucket_name)
             versioning = ver_resp.get("Status") == "Enabled"
 
-            # Count objects for monitoring cost estimate
-            if object_count == 0:
-                paginator = client.get_paginator("list_objects_v2")
-                count = 0
-                for page in paginator.paginate(Bucket=req.bucket_name, PaginationConfig={"MaxItems": 10000}):
-                    count += page.get("KeyCount", 0)
-                object_count = count
+            # Count objects and total size
+            paginator = client.get_paginator("list_objects_v2")
+            count = 0
+            total_size = 0
+            for page in paginator.paginate(Bucket=req.bucket_name, PaginationConfig={"MaxItems": 10000}):
+                count += page.get("KeyCount", 0)
+                for obj in page.get("Contents", []):
+                    total_size += obj.get("Size", 0)
+            object_count = count
+            real_gb = round(total_size / (1024 * 1024 * 1024), 4)
+            if real_gb > 0:
+                storage_gb = real_gb
         except Exception:
             pass  # Use request values if bucket lookup fails
 
     result = estimate_cost(
-        storage_gb=req.storage_gb,
+        storage_gb=storage_gb,
         put_requests_per_day=req.put_requests_per_day,
         get_requests_per_day=req.get_requests_per_day,
         transfer_out_gb_month=req.transfer_out_gb_month,

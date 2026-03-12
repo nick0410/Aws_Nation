@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { DollarSign, TrendingDown, Zap, RefreshCw, Info, CheckCircle } from "lucide-react";
 import toast from "react-hot-toast";
-import { listBuckets, estimateCost } from "../api";
+import { listBuckets, estimateCost, getBucketSummary } from "../api";
 import styles from "./CostPredictor.module.css";
 
 interface ClassResult {
@@ -56,9 +56,25 @@ export default function CostPredictor() {
     listBuckets().then(({ data }) => setBuckets(data.buckets ?? [])).catch(() => {});
   }, []);
 
-  const handleBucketChange = (name: string) => {
+  const [fetchingBucket, setFetchingBucket] = useState(false);
+
+  const handleBucketChange = async (name: string) => {
     setSelected(name);
     setResult(null);
+    if (!name) return;
+    setFetchingBucket(true);
+    try {
+      const { data } = await getBucketSummary(name);
+      const b = data.buckets?.[0];
+      if (b) {
+        const sizeGb = b.total_size_bytes ? +(b.total_size_bytes / (1024 * 1024 * 1024)).toFixed(4) : 0;
+        if (sizeGb > 0) setStorageGb(+sizeGb.toFixed(2));
+        if (b.object_count > 0) setGetReqs(Math.min(b.object_count * 2, 50000));
+        if (b.versioning === true || b.versioning === false) setVersioning(b.versioning);
+        toast.success(`Auto-filled from "${name}" — ${b.object_count} objects, ${(b.total_size_mb ?? 0).toFixed(1)} MB`);
+      }
+    } catch { /* ignore */ }
+    setFetchingBucket(false);
   };
 
   const handleEstimate = async () => {
@@ -115,7 +131,7 @@ export default function CostPredictor() {
             </select>
             {selectedBucket && (
               <span className={styles.hint}>
-                <Info size={11} /> Versioning status will be auto-fetched from AWS
+                <Info size={11} /> {fetchingBucket ? "Fetching bucket stats…" : "Storage, versioning & object count auto-filled from AWS"}
               </span>
             )}
           </div>
