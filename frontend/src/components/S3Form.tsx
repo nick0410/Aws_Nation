@@ -1,5 +1,5 @@
 import { useState, useEffect, type ChangeEvent } from "react";
-import { Cloud, Plus, Trash2, RefreshCw, ExternalLink, FileText, Upload, CheckCircle, XCircle } from "lucide-react";
+import { Cloud, Plus, Trash2, RefreshCw, ExternalLink, FileText, Upload, CheckCircle, XCircle, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { createBucket, listBuckets, deleteBucket, deleteAllBuckets, bulkCreateBuckets } from "../api";
 import type { BucketCreatePayload, BulkBucketRow } from "../api";
@@ -31,6 +31,7 @@ export default function S3Form() {
   const [listLoading, setListLoading]       = useState(false);
   const [deleteAllLoading, setDeleteAllLoading] = useState(false);
   const [lastResult, setLastResult]           = useState<any>(null);
+  const [bucketSearch, setBucketSearch]       = useState("");
 
   // ── Bulk CSV state ──
   const [csvRows, setCsvRows]           = useState<BulkBucketRow[]>([]);
@@ -290,6 +291,19 @@ export default function S3Form() {
           </div>
         </div>
 
+        {buckets.length > 0 && (
+          <div className={styles.searchBar}>
+            <Search size={16} color="var(--text-muted)" />
+            <input
+              className={styles.searchInput}
+              type="text"
+              placeholder="Search buckets…"
+              value={bucketSearch}
+              onChange={(e) => setBucketSearch(e.target.value)}
+            />
+          </div>
+        )}
+
         {buckets.length === 0 ? (
           <div className={styles.empty}>
             <Cloud size={40} color="var(--border)" />
@@ -297,7 +311,7 @@ export default function S3Form() {
           </div>
         ) : (
           <div className={styles.bucketList}>
-            {buckets.map((b) => (
+            {buckets.filter((b) => b.name.toLowerCase().includes(bucketSearch.toLowerCase())).map((b) => (
               <div key={b.name} className={styles.bucketItem}>
                 <div>
                   <div style={{ fontWeight: 600 }}>{b.name}</div>
