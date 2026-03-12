@@ -50,7 +50,7 @@ export const bulkCreateBuckets = (buckets: BulkBucketRow[]) =>
 
 // ── Bucket Summary ───────────────────────────────────────────
 export const getBucketSummary  = (bucket_name = "") =>
-  API.get("/s3/summary", { params: bucket_name ? { bucket_name } : {} });
+  API.get("/s3/summary", { params: { ...(bucket_name ? { bucket_name } : {}), detail: true } });
 
 // ── Cost Estimator ───────────────────────────────────────────
 export interface CostEstimatePayload {

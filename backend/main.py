@@ -355,10 +355,10 @@ async def bucket_summary_all(request: Request, bucket_name: str = "", detail: bo
             except Exception:
                 pass
 
-            # Optional: versioning + Lambda (only when detail=True or single-bucket)
+            # Versioning + Lambda triggers
             versioning = None
             lambdas    = []
-            if detail or bucket_name:
+            if True:
                 try:
                     v = client.get_bucket_versioning(Bucket=name)
                     versioning = v.get("Status") == "Enabled"

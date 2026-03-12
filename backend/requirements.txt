@@ -13,6 +13,10 @@ transformers==4.40.1
 torch==2.2.2
 sentencepiece==0.2.0
 
+# Machine Learning — Cost Predictor
+scikit-learn==1.4.2
+numpy==1.26.4
+
 # Environment
 python-dotenv==1.0.1
 
