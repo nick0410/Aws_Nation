@@ -16,18 +16,9 @@ def _load_model():
     """Load the HuggingFace summarization pipeline (cached after first load)."""
     global _summarizer
     if _summarizer is None:
-        try:
-            from transformers import pipeline
-            _summarizer = pipeline(
-                "summarization",
-                model=_model_name,
-                tokenizer=_model_name,
-                framework="pt"      # PyTorch
-            )
-            print(f"[ML] Model '{_model_name}' loaded successfully.")
-        except Exception as e:
-            print(f"[ML] Could not load transformer model: {e}")
-            _summarizer = "fallback"
+        # For production deployment, always use fallback to avoid heavy dependencies
+        _summarizer = "fallback"
+        print(f"[ML] Using extractive fallback (production-safe)")
     return _summarizer
 
 
