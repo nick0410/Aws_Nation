@@ -10,7 +10,11 @@ import hashlib
 import secrets
 from pathlib import Path
 
-USERS_FILE = Path(__file__).parent / "users.json"
+# Vercel serverless has read-only filesystem; use /tmp for writable storage
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    USERS_FILE = Path("/tmp/users.json")
+else:
+    USERS_FILE = Path(__file__).parent / "users.json"
 
 # In-memory session store: token -> username
 _sessions: dict[str, str] = {}

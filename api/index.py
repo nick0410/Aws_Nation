@@ -8,6 +8,3 @@ if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
 from main import app
-from fastapi.middleware.wsgi import WSGIMiddleware
-
-app = WSGIMiddleware(app)
