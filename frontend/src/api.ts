@@ -1,7 +1,11 @@
 import axios from "axios";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? "http://127.0.0.1:8000" : "/api");
+
 const API = axios.create({
-  baseURL: "http://127.0.0.1:8000",
+  baseURL: API_BASE_URL,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -63,5 +67,15 @@ export interface CostEstimatePayload {
   object_count?:          number;
 }
 export const estimateCost = (data: CostEstimatePayload) => API.post("/s3/cost-estimate", data);
+
+// ── ML Summary ───────────────────────────────────────────────
+export interface ProductSummaryPayload {
+  product_name: string;
+  product_description: string;
+  max_length?: number;
+  min_length?: number;
+}
+
+export const summarizeProduct = (data: ProductSummaryPayload) => API.post("/ml/summarize", data);
 
 export default API;

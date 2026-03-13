@@ -278,7 +278,7 @@ export default function S3Form() {
           <Cloud size={20} color="var(--ml)" />
           <h2>Your Buckets</h2>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <button className="btn btn-outline" onClick={handleList} disabled={listLoading}>
+            <button className="btn btn-outline" onClick={() => void handleList()} disabled={listLoading}>
               {listLoading ? <RefreshCw size={14} className={styles.spin} /> : <RefreshCw size={14} />}
               Refresh
             </button>
