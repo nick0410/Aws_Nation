@@ -143,6 +143,4 @@ aws_autonation/
 
 **individual contribution by contributor**
  - **Aanchal Yadav** - Random forest model creation for cost prediction in s3 bucket, k means model for summary for buckets, buckets backend setup in the uvicorn at port 8080 and used vite port 5173
- - **snigdha dutta** - Ui for the complete website using the python and react 19 at given version documneted
- - **kshitij vats** -  created a lambda trigger managment system and set up the idea with up path suggestions.
  - **Nikhilesh dubey** - aws autonation ui and api management.
