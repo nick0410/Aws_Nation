@@ -83,6 +83,11 @@ Create `backend/.env` (copy from `.env.example`):
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=...
 AWS_DEFAULT_REGION=us-east-1
+
+#Example:
+AWS_ACCESS_KEY_ID=AKIAEXAMPLE123456789
+AWS_SECRET_ACCESS_KEY=exampleSecretKey1234567890abcdefghijklmnop
+AWS_DEFAULT_REGION=us-east-1
 ```
 
 ---
